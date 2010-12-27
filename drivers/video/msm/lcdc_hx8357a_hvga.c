@@ -56,6 +56,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/hardware_self_adapt.h>
 #include <mach/gpio.h>
 #include "msm_fb.h"
 #include "lcdc_huawei_config.h"
@@ -479,7 +480,9 @@ static struct msm_fb_panel_data hx8357a_hvga_panel_data = {
     .on = hx8357a_hvga_panel_on,
     .off = hx8357a_hvga_panel_off,
     .set_backlight = hx8357a_hvga_set_backlight,
+    /*
     .set_contrast = hx8357a_hvga_panel_set_contrast,
+    */
 };
 
 static struct platform_device this_device = {

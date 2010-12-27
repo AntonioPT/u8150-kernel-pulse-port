@@ -36,7 +36,6 @@
 #endif
 
 #include "smd_private.h"
-#include "smd_rpcrouter.h"
 #include "acpuclock.h"
 #include "clock.h"
 #include "proc_comm.h"
@@ -338,6 +337,14 @@ static int msm_sleep(int sleep_mode, uint32_t sleep_delay,
 			goto ramp_down_failed;
 	}
 	if (sleep_mode < MSM_PM_SLEEP_MODE_APPS_SLEEP) {
+#ifdef CONFIG_MSM_ADM_OFF_AT_POWER_COLLAPSE
+		/* XXX: Temp workaround that needs to be removed soon. The
+		 * right fix will probably involve the DMA driver taking
+		 * ownership of the ADM clock. */
+		/* id is set to denote ADM clock. */
+		unsigned id = 1;
+		msm_proc_comm(PCOM_CLKCTL_RPC_DISABLE, &id, NULL);
+#endif
 		if (msm_pm_debug_mask & MSM_PM_DEBUG_SMSM_STATE)
 			smsm_print_sleep_info(*msm_pm_sma.sleep_delay,
 				*msm_pm_sma.limit_sleep,
@@ -369,6 +376,14 @@ static int msm_sleep(int sleep_mode, uint32_t sleep_delay,
 				msm_pm_sma.int_info->aArm_en_mask,
 				msm_pm_sma.int_info->aArm_wakeup_reason,
 				msm_pm_sma.int_info->aArm_interrupts_pending);
+#ifdef CONFIG_MSM_ADM_OFF_AT_POWER_COLLAPSE
+		/* id is set to denote ADM clock. */
+		id = 1;
+		if (msm_proc_comm(PCOM_CLKCTL_RPC_ENABLE, &id, NULL) < 0 ||
+			id < 0)
+			printk(KERN_ERR
+				"msm_sleep(): failed to turn on ADM clock\n");
+#endif
 	} else {
 		msm_arch_idle();
 		rv = 0;
@@ -378,8 +393,7 @@ static int msm_sleep(int sleep_mode, uint32_t sleep_delay,
 		if (msm_pm_debug_mask & MSM_PM_DEBUG_CLOCK)
 			printk(KERN_INFO "msm_sleep(): exit power collapse %ld"
 			       "\n", pm_saved_acpu_clk_rate);
-		if (acpuclk_set_rate(smp_processor_id(),
-				pm_saved_acpu_clk_rate, SETRATE_PC) < 0)
+		if (acpuclk_set_rate(pm_saved_acpu_clk_rate, SETRATE_PC) < 0)
 			printk(KERN_ERR "msm_sleep(): clk_set_rate %ld "
 			       "failed\n", pm_saved_acpu_clk_rate);
 	}
@@ -545,8 +559,7 @@ void arch_idle(void)
 			printk(KERN_DEBUG "msm_sleep: clk swfi -> %ld\n",
 				saved_rate);
 		if (saved_rate
-		    && acpuclk_set_rate(smp_processor_id(),
-				saved_rate, SETRATE_SWFI) < 0)
+		    && acpuclk_set_rate(saved_rate, SETRATE_SWFI) < 0)
 			printk(KERN_ERR "msm_sleep(): clk_set_rate %ld "
 			       "failed\n", saved_rate);
 	} else {
@@ -611,7 +624,7 @@ static int msm_pm_enter(suspend_state_t state)
 	int64_t period = 0;
 	int64_t time = 0;
 
-	time = msm_timer_get_sclk_time(&period);
+	time = msm_timer_get_smem_clock_time(&period);
 	ret = msm_clock_require_tcxo(clk_ids, NR_CLKS);
 #elif defined(CONFIG_CLOCK_BASED_SLEEP_LIMIT)
 	ret = msm_clock_require_tcxo(NULL, 0);
@@ -650,7 +663,7 @@ static int msm_pm_enter(suspend_state_t state)
 		}
 
 		if (time != 0) {
-			end_time = msm_timer_get_sclk_time(NULL);
+			end_time = msm_timer_get_smem_clock_time(NULL);
 			if (end_time != 0) {
 				time = end_time - time;
 				if (time < 0)
@@ -675,14 +688,12 @@ static uint32_t restart_reason = 0x776655AA;
 
 static void msm_pm_power_off(void)
 {
-	msm_rpcrouter_close();
 	msm_proc_comm(PCOM_POWER_DOWN, 0, 0);
 	for (;;) ;
 }
 
-static void msm_pm_restart(char str, const char *cmd)
+static void msm_pm_restart(char str)
 {
-	msm_rpcrouter_close();
 	msm_proc_comm(PCOM_RESET_CHIP, &restart_reason, 0);
 
 	for (;;) ;
@@ -931,7 +942,7 @@ static int __init msm_pm_init(void)
 	 * bootloader must be re-executed. Do not overwrite the reset vector
 	 * or bootloader area.
 	 */
-	msm_pm_reset_vector = (uint32_t *) PAGE_OFFSET;
+	msm_pm_reset_vector = PAGE_OFFSET;
 #else
 	msm_pm_reset_vector = ioremap(0, PAGE_SIZE);
 	if (msm_pm_reset_vector == NULL) {
@@ -962,10 +973,8 @@ static int __init msm_pm_init(void)
 	return 0;
 }
 
-void __init msm_pm_set_platform_data(
-	struct msm_pm_platform_data *data, int count)
+void __init msm_pm_set_platform_data(struct msm_pm_platform_data *data)
 {
-	BUG_ON(MSM_PM_SLEEP_MODE_NR != count);
 	msm_pm_modes = data;
 }
 

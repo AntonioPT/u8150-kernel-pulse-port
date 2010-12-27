@@ -168,6 +168,7 @@ struct clocksource {
 	void (*disable)(struct clocksource *cs);
 	cycle_t mask;
 	u32 mult;
+	u32 mult_orig;
 	u32 shift;
 	u64 max_idle_ns;
 	unsigned long flags;
@@ -268,6 +269,22 @@ static inline u32 clocksource_hz2mult(u32 hz, u32 shift_constant)
 static inline s64 clocksource_cyc2ns(cycle_t cycles, u32 mult, u32 shift)
 {
 	return ((u64) cycles * mult) >> shift;
+}
+
+/**
+ * cyc2ns - converts clocksource cycles to nanoseconds
+ * @cs:		Pointer to clocksource
+ * @cycles:	Cycles
+ *
+ * Uses the clocksource and ntp ajdustment to convert cycle_ts to nanoseconds.
+ *
+ * XXX - This could use some mult_lxl_ll() asm optimization
+ */
+static inline s64 cyc2ns(struct clocksource *cs, cycle_t cycles)
+{
+	u64 ret = (u64)cycles;
+	ret = (ret * cs->mult) >> cs->shift;
+	return ret;
 }
 
 

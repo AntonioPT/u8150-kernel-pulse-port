@@ -43,19 +43,13 @@ enum hsusb_phy_type {
 	INTEGRATED,
 	EXTERNAL,
 };
-/* used to detect the OTG Mode */
-enum otg_mode {
-	OTG_ID = 0, /* ID pin detection */
-	OTG_SYSFS,  /* sysfs mode */
-	OTG_VCHG,   /* Based on VCHG interrupt */
-};
 
 struct usb_function_map {
 	char name[20];
 	unsigned bit_pos;
 };
 
-#ifdef CONFIG_USB_FUNCTION
+#ifndef CONFIG_USB_ANDROID
 /* platform device data for msm_hsusb driver */
 struct usb_composition {
 	__u16   product_id;
@@ -63,40 +57,23 @@ struct usb_composition {
 };
 #endif
 
-#ifdef CONFIG_USB_GADGET_MSM_72K
 enum chg_type {
-	USB_CHG_TYPE__SDP,
-	USB_CHG_TYPE__CARKIT,
-	USB_CHG_TYPE__WALLCHARGER,
-	USB_CHG_TYPE__INVALID
-};
-#endif
-
-enum pre_emphasis_level {
-	PRE_EMPHASIS_DEFAULT,
-	PRE_EMPHASIS_DISABLE,
-	PRE_EMPHASIS_WITH_10_PERCENT = (1 << 5),
-	PRE_EMPHASIS_WITH_20_PERCENT = (3 << 4),
-};
-enum cdr_auto_reset {
-	CDR_AUTO_RESET_DEFAULT,
-	CDR_AUTO_RESET_ENABLE,
-	CDR_AUTO_RESET_DISABLE,
-};
-enum hs_drv_amplitude {
-	HS_DRV_AMPLITUDE_DEFAULT,
-	HS_DRV_AMPLITUDE_ZERO_PERCENT,
-	HS_DRV_AMPLITUDE_25_PERCENTI = (1 << 2),
-	HS_DRV_AMPLITUDE_5_PERCENT = (1 << 3),
-	HS_DRV_AMPLITUDE_75_PERCENT = (3 << 2),
+	CHG_TYPE_HOSTPC,
+	CHG_TYPE_WALL_CHARGER,
+	CHG_TYPE_INVALID
 };
 
 struct msm_hsusb_gadget_platform_data {
+	/* for notification when USB is connected or disconnected */
+	void (*usb_connected)(int);
+
 	int *phy_init_seq;
 	void (*phy_reset)(void);
 
-	u32 swfi_latency;
-	int self_powered;
+	/*charging apis*/
+	int  (*chg_init)(int);
+	void (*chg_connected)(enum chg_type);
+	void (*chg_vbus_draw)(unsigned);
 };
 
 struct msm_hsusb_platform_data {
@@ -110,6 +87,9 @@ struct msm_hsusb_platform_data {
 	int num_compositions;
 	struct usb_function_map *function_map;
 	int num_functions;
+	/* ULPI data pins used for LPM */
+	unsigned ulpi_data_1_pin;
+	unsigned ulpi_data_3_pin;
 	/* gpio mux function used for LPM */
 	int (*config_gpio)(int config);
 	/* ROC info for AHB Mode */
@@ -117,6 +97,7 @@ struct msm_hsusb_platform_data {
 
 	int (*phy_reset)(void __iomem *addr);
 
+	unsigned int max_axi_khz;
 	unsigned int core_clk;
 
 	int vreg5v_required;
@@ -126,36 +107,15 @@ struct msm_hsusb_platform_data {
 
 struct msm_otg_platform_data {
 	int (*rpc_connect)(int);
-	int (*phy_reset)(void __iomem *);
-	unsigned int core_clk;
-	int pmic_vbus_irq;
-	/* if usb link is in sps there is no need for
-	 * usb pclk as dayatona fabric clock will be
-	 * used instead
-	 */
-	int usb_in_sps;
-	enum pre_emphasis_level	pemp_level;
-	enum cdr_auto_reset	cdr_autoreset;
-	enum hs_drv_amplitude	drv_ampl;
-	int			phy_reset_sig_inverted;
-
-	/* pmic notfications apis */
-	int (*pmic_notif_init) (void);
-	void (*pmic_notif_deinit) (void);
-	int (*pmic_register_vbus_sn) (void (*callback)(int online));
-	void (*pmic_unregister_vbus_sn) (void (*callback)(int online));
-	int (*pmic_enable_ldo) (int);
-	void (*setup_gpio)(unsigned int config);
-	u8      otg_mode;
+	int (*phy_reset)(void);
 };
 
 struct msm_usb_host_platform_data {
 	unsigned phy_info;
-	unsigned int power_budget;
+	unsigned int max_axi_khz;
 	int (*phy_reset)(void __iomem *addr);
 	void (*config_gpio)(unsigned int config);
 	void (*vbus_power) (unsigned phy_info, int on);
-	int  (*vbus_init)(int init);
 };
 
 #endif

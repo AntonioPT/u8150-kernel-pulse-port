@@ -3,7 +3,7 @@
  * MSM architecture cpufreq driver
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2007-2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2007-2009, Code Aurora Forum. All rights reserved.
  * Author: Mike A. Chan <mikechan@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -25,6 +25,31 @@
 #define dprintk(msg...) \
 		cpufreq_debug_printk(CPUFREQ_DEBUG_DRIVER, "cpufreq-msm", msg)
 
+#ifdef CONFIG_MSM_CPU_FREQ_SCREEN
+static void msm_early_suspend(struct early_suspend *handler)
+{
+       acpuclk_set_rate(CONFIG_MSM_CPU_FREQ_SCREEN_OFF * 1000, SETRATE_CPUFREQ);
+}
+
+static void msm_late_resume(struct early_suspend *handler)
+{
+       acpuclk_set_rate(CONFIG_MSM_CPU_FREQ_SCREEN_ON * 1000, SETRATE_CPUFREQ);
+}
+
+static struct early_suspend msm_power_suspend = {
+       .suspend = msm_early_suspend,
+       .resume = msm_late_resume,
+};
+
+static int __init clock_late_init(void)
+{
+       register_early_suspend(&msm_power_suspend);
+       return 0;
+}
+
+late_initcall(clock_late_init);
+#elif defined(CONFIG_CPU_FREQ_MSM)
+
 static int msm_cpufreq_target(struct cpufreq_policy *policy,
 				unsigned int target_freq,
 				unsigned int relation)
@@ -32,9 +57,9 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 	int index;
 	int ret = 0;
 	struct cpufreq_freqs freqs;
-	struct cpufreq_frequency_table *table;
+	struct cpufreq_frequency_table *table =
+		cpufreq_frequency_get_table(smp_processor_id());
 
-	table = cpufreq_frequency_get_table(policy->cpu);
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 			&index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
@@ -47,10 +72,9 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 #endif
 	freqs.old = policy->cur;
 	freqs.new = table[index].frequency;
-	freqs.cpu = policy->cpu;
+	freqs.cpu = smp_processor_id();
 	cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
-	ret = acpuclk_set_rate(policy->cpu, table[index].frequency,
-				SETRATE_CPUFREQ);
+	ret = acpuclk_set_rate(table[index].frequency * 1000, SETRATE_CPUFREQ);
 	if (!ret)
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	return ret;
@@ -63,12 +87,12 @@ static int msm_cpufreq_verify(struct cpufreq_policy *policy)
 	return 0;
 }
 
-static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
+static int __init msm_cpufreq_init(struct cpufreq_policy *policy)
 {
-	struct cpufreq_frequency_table *table;
+	struct cpufreq_frequency_table *table =
+		cpufreq_frequency_get_table(smp_processor_id());
 
-	table = cpufreq_frequency_get_table(policy->cpu);
-	policy->cur = acpuclk_get_rate(policy->cpu);
+	policy->cur = acpuclk_get_rate();
 	if (cpufreq_frequency_table_cpuinfo(policy, table)) {
 #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
 		policy->cpuinfo.min_freq = CONFIG_MSM_CPU_FREQ_MIN;
@@ -100,4 +124,4 @@ static int __init msm_cpufreq_register(void)
 }
 
 late_initcall(msm_cpufreq_register);
-
+#endif

@@ -3,7 +3,7 @@
  * MSM7K, QSD io support
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2008-2009, Code Aurora Forum. All rights reserved.
  * Author: Brian Swetland <swetland@google.com>
  *
  * This software is licensed under the terms of the GNU General Public
@@ -39,7 +39,7 @@
 /* msm_shared_ram_phys default value of 0x00100000 is the most common value
  * and should work as-is for any target without stacked memory.
  */
-unsigned int msm_shared_ram_phys = 0x00100000;
+int msm_shared_ram_phys = 0x00100000;
 
 static void msm_map_io(struct map_desc *io_desc, int size)
 {
@@ -58,7 +58,7 @@ static void msm_map_io(struct map_desc *io_desc, int size)
 static struct map_desc msm_io_desc[] __initdata = {
 	MSM_DEVICE(VIC),
 	MSM_DEVICE(CSR),
-	MSM_DEVICE(TMR),
+	MSM_DEVICE(GPT),
 	MSM_DEVICE(DMOV),
 	MSM_DEVICE(GPIO1),
 	MSM_DEVICE(GPIO2),
@@ -98,7 +98,7 @@ void __init msm_map_common_io(void)
 static struct map_desc qsd8x50_io_desc[] __initdata = {
 	MSM_DEVICE(VIC),
 	MSM_DEVICE(CSR),
-	MSM_DEVICE(TMR),
+	MSM_DEVICE(GPT),
 	MSM_DEVICE(DMOV),
 	MSM_DEVICE(GPIO1),
 	MSM_DEVICE(GPIO2),
@@ -123,51 +123,20 @@ void __init msm_map_qsd8x50_io(void)
 }
 #endif /* CONFIG_ARCH_QSD8X50 */
 
-#ifdef CONFIG_ARCH_MSM8X60
-static struct map_desc msm8x60_io_desc[] __initdata = {
-	MSM_DEVICE(QGIC_DIST),
-	MSM_DEVICE(QGIC_CPU),
-	MSM_DEVICE(TMR),
-	MSM_DEVICE(ACC),
-	MSM_DEVICE(ACC0),
-	MSM_DEVICE(ACC1),
-	MSM_DEVICE(GCC),
-	MSM_DEVICE(TLMM),
-	MSM_DEVICE(DMOV_ADM0),
-	MSM_DEVICE(DMOV_ADM1),
-	MSM_DEVICE(SCPLL),
-	MSM_DEVICE(CLK_CTL),
-	MSM_DEVICE(MMSS_CLK_CTL),
-	MSM_DEVICE(LPASS_CLK_CTL),
-	{
-		.virtual =  (unsigned long) MSM_SHARED_RAM_BASE,
-		.length =   MSM_SHARED_RAM_SIZE,
-		.type =     MT_DEVICE,
-	},
-};
-
-void __init msm_map_msm8x60_io(void)
-{
-	msm_map_io(msm8x60_io_desc, ARRAY_SIZE(msm8x60_io_desc));
-}
-#endif /* CONFIG_ARCH_MSM8X60 */
-
 #ifdef CONFIG_ARCH_MSM7X30
 static struct map_desc msm7x30_io_desc[] __initdata = {
 	MSM_DEVICE(VIC),
 	MSM_DEVICE(CSR),
-	MSM_DEVICE(TMR),
+	MSM_DEVICE(GPT),
 	MSM_DEVICE(DMOV),
 	MSM_DEVICE(GPIO1),
 	MSM_DEVICE(GPIO2),
 	MSM_DEVICE(CLK_CTL),
-	MSM_DEVICE(CLK_CTL_SH2),
+	MSM_DEVICE(SIRC),
+	MSM_DEVICE(SCPLL),
 	MSM_DEVICE(AD5),
 	MSM_DEVICE(MDC),
-	MSM_DEVICE(ACC),
-	MSM_DEVICE(SAW),
 	MSM_DEVICE(GCC),
-	MSM_DEVICE(TCSR),
 #ifdef CONFIG_MSM_DEBUG_UART
 	MSM_DEVICE(DEBUG_UART),
 #endif
@@ -188,7 +157,7 @@ void __init msm_map_msm7x30_io(void)
 static struct map_desc comet_io_desc[] __initdata = {
 	MSM_DEVICE(VIC),
 	MSM_DEVICE(CSR),
-	MSM_DEVICE(TMR),
+	MSM_DEVICE(GPT),
 	MSM_DEVICE(DMOV),
 	MSM_DEVICE(GPIO1),
 	MSM_DEVICE(GPIO2),
@@ -217,11 +186,11 @@ void __iomem *
 __msm_ioremap(unsigned long phys_addr, size_t size, unsigned int mtype)
 {
 	if (mtype == MT_DEVICE) {
-		/* The peripherals in the 88000000 - F0000000 range
+		/* The peripherals in the 88000000 - D0000000 range
 		 * are only accessable by type MT_DEVICE_NONSHARED.
 		 * Adjust mtype as necessary to make this "just work."
 		 */
-		if ((phys_addr >= 0x88000000) && (phys_addr < 0xF0000000))
+		if ((phys_addr >= 0x88000000) && (phys_addr < 0xD0000000))
 			mtype = MT_DEVICE_NONSHARED;
 	}
 

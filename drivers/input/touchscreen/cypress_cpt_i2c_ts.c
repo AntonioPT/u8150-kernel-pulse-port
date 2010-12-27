@@ -1,6 +1,6 @@
 /* drivers/input/touchscreen/cypress_cpt_i2c_ts.c
  *
- * 
+ * Copyright (C) 2009 HUAWEI.
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
  * may be copied, distributed, and modified under those terms.
@@ -29,6 +29,13 @@
 #include <asm/uaccess.h>
 #include <linux/namei.h>
 #include <mach/vreg.h>
+#ifdef  CONFIG_MACH_MSM7201A_SURF
+#define TOUCH_GPIO_IRQ 57
+#define TOUCH_VREG "gp6"
+#else
+#define TOUCH_GPIO_IRQ 29
+#define TOUCH_VREG "gp5"
+#endif
 
 #ifdef CONFIG_UPDATE_TS_FIRMWARE 
 static ssize_t update_firmware_show(struct kobject *kobj, struct kobj_attribute *attr,char *buf);
@@ -348,7 +355,7 @@ static int cypress_ts_power_on(struct cypress_cpt_ts_data *ts, boolean on)
 static int cypress_cpt_ts_probe(
 	struct i2c_client *client, const struct i2c_device_id *id)
 {
-	struct vreg *v_gp6;
+	struct vreg *vreg;
 	int ret = 0;
 #ifdef CONFIG_UPDATE_TS_FIRMWARE 
 	static char version[10];
@@ -364,15 +371,15 @@ static int cypress_cpt_ts_probe(
 		goto err_check_functionality_failed;
 	}
 	/* power on touchscreen */
-    v_gp6 = vreg_get(NULL,"gp6");
-    ret = IS_ERR(v_gp6);
+    vreg = vreg_get(NULL,TOUCH_VREG);
+    ret = IS_ERR(vreg);
     if(ret) 
         return ret;
         
-    ret = vreg_set_level(v_gp6,2800);
+    ret = vreg_set_level(vreg,2800);
     if (ret)
         return ret;
-    ret = vreg_enable(v_gp6);
+    ret = vreg_enable(vreg);
     if (ret)
         return ret;
 
@@ -464,22 +471,22 @@ find_device:
 		goto err_input_register_device_failed;
 	}
 
-      gpio_config = GPIO_CFG(57, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA);
+      gpio_config = GPIO_CFG(TOUCH_GPIO_IRQ, 0, GPIO_INPUT, GPIO_PULL_UP, GPIO_2MA);
 	rc = gpio_tlmm_config(gpio_config, GPIO_ENABLE);
 	
-      CYPRESS_DEBUG(KERN_ERR "%s: gpio_tlmm_config(%#x)=%d\n", __func__, 57, rc);
+      CYPRESS_DEBUG(KERN_ERR "%s: gpio_tlmm_config(%#x)=%d\n", __func__, TOUCH_GPIO_IRQ, rc);
 
       if (rc)
       	{
 		return -EIO;
 	}
 		
-	if (gpio_request(57, "cypress_cpt_ts_int\n"))
+	if (gpio_request(TOUCH_GPIO_IRQ, "cypress_cpt_ts_int\n"))
 		pr_err("failed to request gpio cypress_cpt_ts_int\n");
 	
-	ret = gpio_configure(57, GPIOF_INPUT | IRQF_TRIGGER_LOW);/*gpio 57 is interupt for touchscreen.*/
+	ret = gpio_configure(TOUCH_GPIO_IRQ, GPIOF_INPUT | IRQF_TRIGGER_LOW);
 	if (ret) {
-		CYPRESS_DEBUG(KERN_ERR "cypress_cpt_ts_probe: gpio_configure failed for %d\n", 57);
+		CYPRESS_DEBUG(KERN_ERR "cypress_cpt_ts_probe: gpio_configure failed for %d\n", TOUCH_GPIO_IRQ);
 		goto err_input_register_device_failed;
 	}
 	
